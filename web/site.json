@@ -1,0 +1,349 @@
+{
+  "schema": 3,
+  "name": "tryfirst",
+  "github": "https://github.com/SuperMarioYL/tryfirst",
+  "host": "tryfirst.lei6393.com",
+  "palette": "auto",
+  "lang": {
+    "primary": "zh",
+    "toggle": true
+  },
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json",
+    "content_version": "0.1.0"
+  },
+  "hero": {
+    "eyebrow": {
+      "zh": "Agentic Skill 仓库的试跑沙箱",
+      "en": "Sandbox try-run for agent skill repos"
+    },
+    "headline": {
+      "zh": "让仓库自己\n跑给你看。",
+      "en": "See what a repo\ndoes when it runs."
+    },
+    "sub": {
+      "zh": "Tryfirst 把仓库自带的 demo 跑进一次性沙箱：一条命令，不注册，也不填自己的 API Key。退出时容器、临时 checkout 和每-run 镜像都不留，只留下一份可复核的运行凭据。",
+      "en": "Tryfirst runs a repository's own demo in a throwaway sandbox: one command, no sign-up, no API key of your own. On exit the container, the temp checkout and the per-run image are gone; one reviewable receipt remains."
+    },
+    "href": "#demo",
+    "cta": {
+      "zh": "看真实运行",
+      "en": "See the recorded run"
+    },
+    "ctaGithub": {
+      "zh": "在 GitHub 查看",
+      "en": "View on GitHub"
+    }
+  },
+  "advantages": [
+    {
+      "title": {
+        "zh": "不用账号，不用自己的 key",
+        "en": "No account, no key of your own"
+      },
+      "body": {
+        "zh": "沙箱在容器内 127.0.0.1:8787 提供 OpenAI 与 Anthropic 兼容的模型 stub，demo 在 --network none 下运行。它拿 stub 密钥完成认证，不是你的密钥。",
+        "en": "The sandbox serves an OpenAI- and Anthropic-compatible model stub at 127.0.0.1:8787 and runs the demo under --network none. The demo authenticates with a stub key, not yours."
+      },
+      "chips": [
+        "model_mode: stub",
+        "network: none"
+      ]
+    },
+    {
+      "title": {
+        "zh": "每条命令都有来源",
+        "en": "Every command has a source"
+      },
+      "body": {
+        "zh": "安装与 demo 命令从 package.json、pyproject.toml、requirements.txt 或 README 快速开始段落推导，各自带来源。没有来源的命令不会被执行，也不会写进凭据。",
+        "en": "Install and demo commands are derived from package.json, pyproject.toml, requirements.txt or a README quickstart, each with provenance. A command without a source is never executed and never enters the receipt."
+      },
+      "chips": [
+        "package.json:scripts.start",
+        "README:## Quick Start > bash fence"
+      ]
+    },
+    {
+      "title": {
+        "zh": "不留残留，只留凭据",
+        "en": "Nothing left behind, one receipt kept"
+      },
+      "body": {
+        "zh": "容器以 --rm 运行，退出时删除临时 checkout 和每-run 镜像。每次运行写一份 sha256 封缄的 tryfirst/receipt@1 JSON，以及一个不引用外部资源、断网也能打开的 HTML 报告。",
+        "en": "The container runs with --rm; the temp checkout and the per-run image are deleted on exit. Each run writes a sha256-sealed tryfirst/receipt@1 JSON plus an HTML report that opens offline."
+      },
+      "chips": [
+        "digest · sha256 over canonical JSON",
+        "offline HTML report"
+      ]
+    }
+  ],
+  "scene": {
+    "kind": "neon-graph",
+    "caption": {
+      "zh": "plan → 沙箱 → 凭据",
+      "en": "plan → sandbox → receipt"
+    },
+    "fallback": "/assets/scene-dark.svg",
+    "fallbackLight": "/assets/scene-light.svg"
+  },
+  "story": {
+    "intro": {
+      "title": {
+        "zh": "README 不等于跑通过。",
+        "en": "A README is not a run."
+      },
+      "body": {
+        "zh": "从 trending 列表里挑一个工具，通常只有两个结局：花 20-40 分钟 clone、装依赖、处理 key，或者干脆不跑。Tryfirst 把它缩成一次不需要账号、不需要自己密钥的沙箱试跑。20-40 分钟是常见的准备量级，90 秒是设计目标；两者都不是基准测试结果。",
+        "en": "Choosing a tool from a trending list usually ends one of two ways: 20-40 minutes of cloning, installing and key handling, or not running it at all. Tryfirst narrows that to a sandbox try-run with no account and no key of your own. 20-40 minutes is a typical order of magnitude and 90 seconds is the design target; neither is a benchmark result."
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "zh": "一次运行做了什么",
+          "en": "What one run does"
+        },
+        "body": {
+          "zh": "plan 读取仓库并打印 RunPlan：运行时、基础镜像、安装命令、demo 命令，以及每条命令的来源。run 在该基础上构建每-run 镜像，先于 demo 启动 stub，原样捕获 stdout 与 stderr，然后写出凭据、HTML 报告和日志，最后清掉容器、镜像和临时目录。",
+          "en": "plan reads the repository and prints a RunPlan: runtime, base image, install commands, demo command and the evidence for each. run builds a per-run image on that base, starts the stub before the demo, captures stdout and stderr verbatim, then writes the receipt, HTML report and log before tearing down the container, image and temp directory."
+        },
+        "image": {
+          "light": "/assets/process-light.svg",
+          "dark": "/assets/process-dark.svg",
+          "alt": {
+            "zh": "一次运行的五个阶段：计划、构建镜像、启动 stub 与 demo、写凭据、清理",
+            "en": "Five stages of one run: plan, build image, start stub and demo, write receipt, tear down"
+          },
+          "mobile": {
+            "light": "/assets/process-mobile-light.svg",
+            "dark": "/assets/process-mobile-dark.svg"
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "结论从哪里来",
+          "en": "Where the verdict comes from"
+        },
+        "body": {
+          "zh": "internal/detect 产出计划与来源；internal/sandbox 渲染 Dockerfile 并运行一个容器；internal/receipt 封缄实际发生的事——verdict、退出码、耗时、网络模式、模型调用计数和产物哈希。计划可以在运行前推导，这些值只能跑出来。",
+          "en": "internal/detect produces the plan and its evidence; internal/sandbox renders the Dockerfile and runs one container; internal/receipt seals what actually happened: verdict, exit code, duration, network mode, model-call counts and artifact hashes. The plan can be derived before a run; these values can only be observed by running."
+        },
+        "image": {
+          "light": "/assets/architecture-light.svg",
+          "dark": "/assets/architecture-dark.svg",
+          "alt": {
+            "zh": "internal/detect、internal/sandbox、internal/receipt 与宿主侧 live 网关的模块关系",
+            "en": "Module relationships between internal/detect, internal/sandbox, internal/receipt and the host-side live gate"
+          },
+          "mobile": {
+            "light": "/assets/architecture-mobile-light.svg",
+            "dark": "/assets/architecture-mobile-dark.svg"
+          }
+        }
+      },
+      {
+        "title": {
+          "zh": "接受什么，留下什么",
+          "en": "What it accepts, what it leaves"
+        },
+        "body": {
+          "zh": "输入是 git URL 或本地目录；检测读取 package.json、pyproject.toml、requirements.txt 或 README 快速开始段落。输出是 <report-dir>/<owner>-<repo>-<sha8>.{json,html,log}。run 需要运行中的 Docker daemon，plan 不需要；需要真实模型时，--model live 走宿主机侧网关。",
+          "en": "Inputs are a git URL or a local directory; detection reads package.json, pyproject.toml, requirements.txt or a README quickstart. Outputs are <report-dir>/<owner>-<repo>-<sha8>.{json,html,log}. run needs a working Docker daemon; plan does not. When a real model is required, --model live routes through a host-side gate."
+        },
+        "image": {
+          "light": "/assets/integrations-light.svg",
+          "dark": "/assets/integrations-dark.svg",
+          "alt": {
+            "zh": "四种检测输入汇入 RunPlan，再产出 json、html、log 三种凭据文件",
+            "en": "Four detection inputs feed the RunPlan, which produces json, html and log receipt files"
+          },
+          "mobile": {
+            "light": "/assets/integrations-mobile-light.svg",
+            "dark": "/assets/integrations-mobile-dark.svg"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "zh": "配置",
+          "en": "Configuration"
+        },
+        "body": {
+          "zh": "plan 默认输出人读的计划；加 --json 输出计划 JSON 并写入 plan.json。run 默认 --model stub、--timeout 180s、--report-dir tryfirst-report。plan 不接受 --report-dir，也不写凭据。",
+          "en": "plan prints a human-readable plan by default; --json prints the plan JSON and writes plan.json. run defaults to --model stub, --timeout 180s and --report-dir tryfirst-report. plan does not accept --report-dir and does not write a receipt."
+        },
+        "code": "tryfirst plan https://github.com/<owner>/<skill-repo> --json --out plan.json\ntryfirst run https://github.com/<owner>/<skill-repo> --model stub --timeout 180s"
+      },
+      {
+        "title": {
+          "zh": "安装与 Docker 要求",
+          "en": "Install and the Docker requirement"
+        },
+        "body": {
+          "zh": "从源码安装需要 Go 1.24+。run 依赖本机运行中的 Docker daemon；plan 完全离线，不需要 Docker。离线或交叉编译环境可以用 TRYFIRST_STUB_BIN 指向预编译的 Linux stub。",
+          "en": "Installing from source needs Go 1.24+. run depends on a running local Docker daemon; plan is entirely offline and needs no Docker. Offline or cross-compiled environments can point TRYFIRST_STUB_BIN at a prebuilt Linux stub."
+        },
+        "code": "go install github.com/SuperMarioYL/tryfirst@v0.1.0"
+      },
+      {
+        "title": {
+          "zh": "实时网关与清理",
+          "en": "Live gate and cleanup"
+        },
+        "body": {
+          "zh": "--model live 必须同时提供 TRYFIRST_UPSTREAM_BASE_URL 与 TRYFIRST_UPSTREAM_API_KEY，缺一个就在接触仓库之前失败。容器只拿到一次性的 per-run token；网关在 20 次请求、5 万 token 或 90 秒任一上限处截断，返回 429 并记下 cap_hit。tryfirst gc 清理带 tryfirst.managed 标签、超过 7 天的镜像。",
+          "en": "--model live requires both TRYFIRST_UPSTREAM_BASE_URL and TRYFIRST_UPSTREAM_API_KEY; if either is missing it fails before the repository is touched. The container sees only a per-run ephemeral token; the gate cuts the run at 20 requests, 50k tokens or 90 seconds, returns 429 and records cap_hit. tryfirst gc removes images labeled tryfirst.managed that are older than seven days."
+        },
+        "code": "tryfirst gc"
+      }
+    ]
+  },
+  "demo": {
+    "title": {
+      "zh": "这次运行的真实记录",
+      "en": "The recorded run"
+    },
+    "note": {
+      "zh": "以下命令与输出来自 docs/demo-results.json，仅去掉行尾空白。录制机器上没有运行中的 Docker daemon，因此第三步记录的是真实的 fail-closed 报错，而不是一次完成的沙箱运行。",
+      "en": "Commands and output below come from docs/demo-results.json with trailing whitespace removed. The recording machine had no running Docker daemon, so the third step records the real fail-closed error instead of a completed sandbox run."
+    },
+    "source": "https://github.com/SuperMarioYL/tryfirst/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": {
+          "zh": "只有提示词的 skill",
+          "en": "A prompt-only skill"
+        },
+        "body": {
+          "zh": "一个只有 SKILL.md、没有可执行 demo 的仓库，同样得到明确结论：no_runnable_demo 加具体原因，退出码仍为 0。",
+          "en": "A repository with only a SKILL.md and no executable demo still gets an explicit answer: no_runnable_demo with a concrete reason, exit code 0."
+        },
+        "image": "/assets/demo-no-demo-light.svg",
+        "imageDark": "/assets/demo-no-demo-dark.svg",
+        "command": "tryfirst plan ./prompt-only-skill",
+        "output": "repo:     ./prompt-only-skill\ncommit:   nogit\nruntime:\nimage:\nverdict:  no_runnable_demo\nreason:   no package.json, pyproject.toml, requirements.txt or README quickstart found; SKILL.md (\"prompt-only-skill\") declares no executable demo"
+      },
+      {
+        "label": {
+          "zh": "给可运行仓库出计划",
+          "en": "Plan a runnable repo"
+        },
+        "body": {
+          "zh": "一个本地示例仓库，package.json 声明了 start 脚本。计划给出基础镜像、安装与 demo 命令，以及它们各自的来源。",
+          "en": "A local sample repository whose package.json declares a start script. The plan names the base image, the install and demo commands, and where each came from."
+        },
+        "image": "/assets/demo-plan-light.svg",
+        "imageDark": "/assets/demo-plan-dark.svg",
+        "command": "tryfirst plan ./hello-skill",
+        "output": "repo:     ./hello-skill\ncommit:   744b7cce\nruntime:  node-22\nimage:    node:22-slim\ninstall:  npm install\ndemo:     npm run start\nevidence: package.json:scripts.start\nverdict:  plan_only"
+      },
+      {
+        "label": {
+          "zh": "run 需要 Docker",
+          "en": "Run needs Docker"
+        },
+        "body": {
+          "zh": "没有 Docker daemon 时，run 在创建容器之前停下，也没有生成报告目录。这里记录的就是这个 fail-closed 行为。",
+          "en": "With no Docker daemon, run stops before creating a container and no report directory is created. That fail-closed behavior is what this step records."
+        },
+        "image": "/assets/demo-docker-light.svg",
+        "imageDark": "/assets/demo-docker-dark.svg",
+        "command": "tryfirst run ./hello-skill --report-dir report",
+        "output": "tryfirst: cannot reach the Docker daemon (exit status 1); start Docker and retry"
+      }
+    ]
+  },
+  "quickstart": {
+    "title": {
+      "zh": "安装、看计划、再试跑",
+      "en": "Install, plan, then run it"
+    },
+    "body": {
+      "zh": "从源码安装需要 Go 1.24+。第二条命令不需要 Docker，第三条需要；装有运行中的 Docker daemon 时，run 才会真正进入沙箱。",
+      "en": "Installing from source needs Go 1.24+. The second command needs no Docker; the third does, and only then does run actually enter the sandbox."
+    },
+    "steps": [
+      {
+        "title": {
+          "zh": "从源码安装",
+          "en": "Install from source"
+        },
+        "code": "go install github.com/SuperMarioYL/tryfirst@v0.1.0"
+      },
+      {
+        "title": {
+          "zh": "先看计划（不需要 Docker）",
+          "en": "Inspect the plan (no Docker)"
+        },
+        "code": "tryfirst plan https://github.com/<owner>/<skill-repo>"
+      },
+      {
+        "title": {
+          "zh": "真正试跑（需要 Docker）",
+          "en": "Actually try it (Docker required)"
+        },
+        "code": "tryfirst run https://github.com/<owner>/<skill-repo>"
+      },
+      {
+        "title": {
+          "zh": "run 打印的三行",
+          "en": "The three lines run prints"
+        },
+        "code": "# what run prints after a container run\nverdict:  runs | fails | no_runnable_demo\nreceipt:  ./tryfirst-report/<owner>-<repo>-<sha8>.json\nreport:   ./tryfirst-report/<owner>-<repo>-<sha8>.html"
+      }
+    ]
+  },
+  "limitations": [
+    {
+      "zh": "本页演示只包含真实执行的 plan 输出与 Docker 不可用报错；录制时没有 Docker daemon，因此没有一次完整的端到端沙箱运行被记录。",
+      "en": "The demo on this page contains real plan output and the Docker-unavailable error only. No end-to-end sandbox run was recorded, because the recording machine had no Docker daemon."
+    },
+    {
+      "zh": "run 需要运行中的 Docker daemon，plan 不需要。原生 Windows 和仅有 rootless Podman 的环境不在 v0.1 支持范围内。",
+      "en": "run needs a running Docker daemon; plan does not. Native Windows and rootless-Podman-only setups are outside v0.1."
+    },
+    {
+      "zh": "stub 模式下 model_mode 记录为 stub：凭据证明的是请求接线与输出形状，不是模型回答质量。",
+      "en": "In stub mode model_mode is stub: the receipt proves request wiring and output shape, not answer quality."
+    },
+    {
+      "zh": "纯提示词 skill 会被报告为 no_runnable_demo；v0.1 不把它们送进模型执行。",
+      "en": "Prompt-only skills are reported as no_runnable_demo; v0.1 does not execute them against a model."
+    },
+    {
+      "zh": "没有托管「试试」按钮、Web UI、可分享链接、账号或任何遥测——CLI 加本地 HTML 报告就是全部界面。",
+      "en": "No hosted try button, web UI, shareable links, accounts or telemetry: the CLI plus a local HTML report is the entire surface."
+    },
+    {
+      "zh": "不做静态风险评分、SBOM 或漏洞扫描。它回答跑不跑得起来、输出长什么样，不回答这段代码是否安全。",
+      "en": "No static risk scoring, SBOM or vulnerability scan. It answers whether the repo runs and what it prints, not whether the code is safe."
+    }
+  ],
+  "cta": {
+    "headline": {
+      "zh": "先跑一次，再做判断。",
+      "en": "Run it once, then decide."
+    },
+    "sub": {
+      "zh": "MIT 许可的 CLI，不需要账号，没有任何遥测。run 只需要一个运行中的 Docker daemon。",
+      "en": "An MIT-licensed CLI with no account and no telemetry. run needs only a running Docker daemon."
+    },
+    "button": {
+      "zh": "在 GitHub 获取",
+      "en": "Get it on GitHub"
+    }
+  },
+  "footer": {
+    "tag": {
+      "zh": "开源 CLI · MIT · 跑在你自己的机器上",
+      "en": "Open-source CLI · MIT · runs on your machine"
+    }
+  },
+  "content_version": "0.1.0"
+}

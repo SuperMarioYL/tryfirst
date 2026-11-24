@@ -133,5 +133,20 @@
       "digest": "<sha256 over canonical JSON minus this field>"
     },
     "verification": "receipt.Receipt.Verify recomputes the sha256 over canonical compact JSON with digest emptied; receipt_test.go covers a passing and a tampered digest."
-  }
+  },
+  "steps": [
+    {
+      "command": "tryfirst plan ./prompt-only-skill",
+      "output": "repo:     ./prompt-only-skill\ncommit:   nogit\nruntime:\nimage:\nverdict:  no_runnable_demo\nreason:   no package.json, pyproject.toml, requirements.txt or README quickstart found; SKILL.md (\"prompt-only-skill\") declares no executable demo"
+    },
+    {
+      "command": "tryfirst plan ./hello-skill",
+      "output": "repo:     ./hello-skill\ncommit:   744b7cce\nruntime:  node-22\nimage:    node:22-slim\ninstall:  npm install\ndemo:     npm run start\nevidence: package.json:scripts.start\nverdict:  plan_only"
+    },
+    {
+      "command": "tryfirst run ./hello-skill --report-dir report",
+      "output": "tryfirst: cannot reach the Docker daemon (exit status 1); start Docker and retry"
+    }
+  ],
+  "steps_note": "Derived verbatim from `commands` for the website renderer: `command` is argv joined, `output` is stdout (or stderr where stdout is empty) with right padding removed. No new facts."
 }
