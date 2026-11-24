@@ -1,0 +1,15 @@
+# Go build output
+/tryfirst
+/tryfirst.exe
+/dist/
+*.test
+
+# Local run artifacts
+tryfirst-report/
+plan.json
+
+# Build-time metadata and stage files (never committed)
+.build_metadata*
+.builder_prompt_common.md
+.stage_*
+BUILD_SETUP_NEXT_STEPS.md

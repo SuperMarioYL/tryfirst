@@ -1,0 +1,137 @@
+{
+  "schema": "tryfirst/demo-results@1",
+  "recorded_at": "2026-11-25",
+  "tool": {
+    "name": "tryfirst",
+    "version": "0.1.0",
+    "source_commit": "740a803",
+    "version_note": "The binary was built with `go build -o /tmp/tryfirst .` from the working tree; `tryfirst version` reports the Go toolchain pseudo-version until a tagged release build."
+  },
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64",
+    "go": "go1.24.1",
+    "docker_client": "27.4.0",
+    "docker_daemon": "unavailable (docker info failed); no container was started"
+  },
+  "scenario": {
+    "description": "A local sample repository whose package.json declares a start script, plus a prompt-only skill with a SKILL.md and no executable demo.",
+    "sample_repo": {
+      "path": "./hello-skill",
+      "files": {
+        "package.json": "{\n  \"name\": \"hello-skill\",\n  \"version\": \"0.1.0\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node index.js\"\n  }\n}\n",
+        "index.js": "const greeting = process.env.OPENAI_BASE_URL ? \"model stub reachable\" : \"no model upstream\";\nconsole.log(\"hello-skill: \" + greeting);\n",
+        "README.md": "# hello-skill\n\nA tiny agent skill used to demonstrate what Tryfirst detects.\n\n## Quick Start\n\n```bash\nnpm install\nnpm run start\n```\n"
+      },
+      "git_commit": "744b7cce"
+    },
+    "prompt_only_repo": {
+      "path": "./prompt-only-skill",
+      "files": {
+        "SKILL.md": "---\nname: prompt-only-skill\ndescription: A prompt-only agent skill with no executable demo.\n---\n\n# Prompt-only skill\n\nPaste this prompt into your agent.\n"
+      }
+    }
+  },
+  "commands": [
+    {
+      "cwd": "/tmp/tryfirst-demo-run",
+      "argv": [
+        "/tmp/tryfirst",
+        "plan",
+        "./hello-skill"
+      ],
+      "exit_code": 0,
+      "stdout": "repo:     ./hello-skill\ncommit:   744b7cce\nruntime:  node-22\nimage:    node:22-slim\ninstall:  npm install\ndemo:     npm run start\nevidence: package.json:scripts.start\nverdict:  plan_only\n",
+      "stderr": ""
+    },
+    {
+      "cwd": "/tmp/tryfirst-demo-run",
+      "argv": [
+        "/tmp/tryfirst",
+        "plan",
+        "./hello-skill",
+        "--json",
+        "--out",
+        "plan.json"
+      ],
+      "exit_code": 0,
+      "stdout": "{\n  \"repo\": \"./hello-skill\",\n  \"commit\": \"744b7cce\",\n  \"runtime\": \"node-22\",\n  \"base_image\": \"node:22-slim\",\n  \"install\": [\n    \"npm install\"\n  ],\n  \"demo_command\": [\n    \"npm\",\n    \"run\",\n    \"start\"\n  ],\n  \"evidence\": \"package.json:scripts.start\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "cwd": "/tmp/tryfirst-demo-run",
+      "argv": [
+        "/tmp/tryfirst",
+        "plan",
+        "./prompt-only-skill"
+      ],
+      "exit_code": 0,
+      "stdout": "repo:     ./prompt-only-skill\ncommit:   nogit\nruntime:  \nimage:    \nverdict:  no_runnable_demo\nreason:   no package.json, pyproject.toml, requirements.txt or README quickstart found; SKILL.md (\"prompt-only-skill\") declares no executable demo\n",
+      "stderr": ""
+    },
+    {
+      "cwd": "/tmp/tryfirst-demo-run",
+      "argv": [
+        "/tmp/tryfirst",
+        "run",
+        "./hello-skill",
+        "--report-dir",
+        "report"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "tryfirst: cannot reach the Docker daemon (exit status 1); start Docker and retry\n",
+      "note": "Recorded to document the fail-closed behavior with no Docker daemon. No report directory was created."
+    }
+  ],
+  "docker_run_recorded": false,
+  "docker_run_note": "A real `tryfirst run` could not be recorded because the Docker daemon was not running on the recording machine. The cast therefore contains the real `plan` output, the real Docker-unavailable error, and the documented receipt contract labeled as such. The README does not claim a recorded end-to-end run.",
+  "receipt_shape": {
+    "schema": "tryfirst/receipt@1",
+    "source": "internal/receipt/receipt.go",
+    "excerpt": {
+      "schema": "tryfirst/receipt@1",
+      "run_id": "<8 hex chars>",
+      "started_at": "<RFC 3339 timestamp>",
+      "plan": {
+        "repo": "<repo>",
+        "commit": "<sha>",
+        "runtime": "node-22",
+        "base_image": "node:22-slim",
+        "install": [
+          "npm install"
+        ],
+        "demo_command": [
+          "npm",
+          "run",
+          "start"
+        ],
+        "evidence": "package.json:scripts.start",
+        "model_env": {
+          "OPENAI_API_KEY": "tryfirst-stub"
+        }
+      },
+      "model_mode": "stub",
+      "verdict": "runs | fails | no_runnable_demo",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "network": "none",
+      "stdout": "<captured demo stdout>",
+      "stderr": "<captured demo stderr>",
+      "artifacts": [
+        {
+          "path": "<base>.log",
+          "sha256": "<sha256>",
+          "bytes": 0
+        }
+      ],
+      "model_calls": {
+        "requests": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "digest": "<sha256 over canonical JSON minus this field>"
+    },
+    "verification": "receipt.Receipt.Verify recomputes the sha256 over canonical compact JSON with digest emptied; receipt_test.go covers a passing and a tampered digest."
+  }
+}
