@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tryfirst receipt — {{.Receipt.Plan.Repo}}</title>
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #161b22;
+    --line: #262d36;
+    --text: #d7dee7;
+    --muted: #8b98a8;
+    --ok: #3fb950;
+    --bad: #f85149;
+    --warn: #d29922;
+    --info: #58a6ff;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 20px 56px;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 980px; margin: 0 auto; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 24px; }
+  .brand { font: 600 20px/1 var(--mono); letter-spacing: 0.02em; }
+  .brand span { color: var(--muted); font-weight: 400; }
+  .verdict {
+    margin-left: auto;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font: 600 14px/1 var(--mono);
+    border: 1px solid currentColor;
+  }
+  .verdict.ok { color: var(--ok); }
+  .verdict.bad { color: var(--bad); }
+  .verdict.warn { color: var(--warn); }
+  .verdict.info { color: var(--info); }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; margin-bottom: 18px; }
+  h2 { margin: 0 0 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px 7px 0; vertical-align: top; border-bottom: 1px solid var(--line); }
+  th { width: 190px; color: var(--muted); font-weight: 500; }
+  tr:last-child th, tr:last-child td { border-bottom: 0; }
+  code, pre { font-family: var(--mono); font-size: 13px; }
+  code { background: #0b0e12; border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+  pre { margin: 0; padding: 14px; background: #0b0e12; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow-y: auto; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 26px; color: var(--muted); font-size: 13px; }
+  .meta b { color: var(--text); font-weight: 600; }
+  .muted { color: var(--muted); }
+  ul.cmds { margin: 0; padding-left: 20px; }
+  ul.cmds li { margin: 3px 0; }
+  .digest { word-break: break-all; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 26px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand">tryfirst <span>receipt</span></div>
+    <div class="verdict {{.VerdictClass}}">{{.Receipt.Verdict}}</div>
+  </header>
+
+  <section>
+    <h2>Run</h2>
+    <table>
+      <tr><th>Repository</th><td><code>{{.Receipt.Plan.Repo}}</code></td></tr>
+      <tr><th>Commit</th><td><code>{{.Receipt.Plan.Commit}}</code></td></tr>
+      <tr><th>Run id</th><td><code>{{.Receipt.RunID}}</code></td></tr>
+      <tr><th>Started (UTC)</th><td>{{.Receipt.StartedAt}}</td></tr>
+      <tr><th>Verdict</th><td>{{.Receipt.Verdict}}</td></tr>
+      <tr><th>Exit code</th><td>{{.Receipt.ExitCode}}</td></tr>
+      <tr><th>Duration</th><td>{{.Receipt.DurationMS}} ms</td></tr>
+      <tr><th>Network</th><td>{{.NetworkLabel}}</td></tr>
+      <tr><th>Model</th><td>{{.ModeLabel}}</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Plan and provenance</h2>
+    <table>
+      <tr><th>Runtime</th><td>{{.Receipt.Plan.Runtime}}</td></tr>
+      <tr><th>Base image</th><td><code>{{.Receipt.Plan.BaseImage}}</code></td></tr>
+      <tr><th>Install</th><td>
+        {{if .Receipt.Plan.Install}}<ul class="cmds">{{range .Receipt.Plan.Install}}<li><code>{{.}}</code></li>{{end}}</ul>
+        {{else}}<span class="muted">none detected</span>{{end}}
+      </td></tr>
+      <tr><th>Demo command</th><td>
+        {{if .Receipt.Plan.DemoCommand}}<pre>{{.Receipt.Plan.DemoScript}}</pre>
+        {{else}}<span class="muted">none detected</span>{{end}}
+      </td></tr>
+      <tr><th>Evidence</th><td><code>{{.Receipt.Plan.Evidence}}</code></td></tr>
+      {{if .Receipt.Plan.NoDemoReason}}<tr><th>Why not runnable</th><td>{{.Receipt.Plan.NoDemoReason}}</td></tr>{{end}}
+    </table>
+  </section>
+
+  <section>
+    <h2>Model calls</h2>
+    <div class="meta">
+      <span>mode <b>{{.Receipt.ModelMode}}</b></span>
+      <span>requests <b>{{.Receipt.ModelCalls.Requests}}</b></span>
+      <span>prompt tokens <b>{{.Receipt.ModelCalls.PromptTokens}}</b></span>
+      <span>completion tokens <b>{{.Receipt.ModelCalls.CompletionTokens}}</b></span>
+      {{if .Receipt.CapHit}}<span>cap <b>hit</b></span>{{end}}
+    </div>
+  </section>
+
+  <section>
+    <h2>stdout</h2>
+    {{if .Receipt.Stdout}}<pre>{{.Receipt.Stdout}}</pre>{{else}}<p class="muted">empty</p>{{end}}
+  </section>
+
+  <section>
+    <h2>stderr</h2>
+    {{if .Receipt.Stderr}}<pre>{{.Receipt.Stderr}}</pre>{{else}}<p class="muted">empty</p>{{end}}
+  </section>
+
+  <section>
+    <h2>Artifacts</h2>
+    <table>
+      <tr><th>Path</th><th>Bytes</th><th>SHA256</th></tr>
+      {{range .Receipt.Artifacts}}
+      <tr><td><code>{{.Path}}</code></td><td>{{.Bytes}}</td><td><code class="digest">{{.SHA256}}</code></td></tr>
+      {{else}}
+      <tr><td colspan="3" class="muted">none</td></tr>
+      {{end}}
+    </table>
+  </section>
+
+  <section>
+    <h2>Seal</h2>
+    <table>
+      <tr><th>Schema</th><td><code>{{.Receipt.Schema}}</code></td></tr>
+      <tr><th>Digest</th><td><code class="digest">{{.Receipt.Digest}}</code></td></tr>
+    </table>
+    <p class="muted">The digest is sha256 over the canonical JSON encoding of this receipt with the digest field emptied. Recompute it locally; this file records a run, it does not score one.</p>
+  </section>
+
+  <footer>tryfirst/receipt@1 — a record of one run, nothing else.</footer>
+</main>
+</body>
+</html>
