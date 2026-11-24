@@ -226,15 +226,26 @@ func (f markdownFence) accept() (runLines, installLines []string, reason string)
 	if len(commands) == 0 {
 		return nil, nil, "block contains no commands"
 	}
+	// Dependency work and environment setup are removed before runnability is
+	// judged, so a block that only prepares a checkout cannot become a demo.
 	for _, line := range commands {
-		if isInstallLine(line) {
-			installLines = append(installLines, line)
-			continue
+		var kept []commandSegment
+		for _, seg := range splitShellSegments(line) {
+			switch segmentKind(seg.text) {
+			case kindInstall:
+				installLines = append(installLines, seg.text)
+			case kindSetup:
+				// Setup is neither demo evidence nor an image install.
+			default:
+				kept = append(kept, seg)
+			}
 		}
-		runLines = append(runLines, line)
+		if len(kept) > 0 {
+			runLines = append(runLines, joinShellSegments(kept))
+		}
 	}
 	if len(runLines) == 0 {
-		return nil, nil, "block only installs dependencies"
+		return nil, nil, "block only installs dependencies or sets up the environment"
 	}
 	if !invokesBinary(runLines) {
 		return nil, nil, "block has no binary invoked at line start"
@@ -242,13 +253,15 @@ func (f markdownFence) accept() (runLines, installLines []string, reason string)
 	return runLines, installLines, ""
 }
 
-// invokesBinary reports whether any run line starts by invoking a real program,
-// so an install-then-echo block is not mistaken for a demo.
+// invokesBinary reports whether any run segment starts by invoking a real
+// program, so an install-then-echo block is not mistaken for a demo.
 func invokesBinary(runLines []string) bool {
 	for _, line := range runLines {
-		token := invocationToken(line)
-		if token != "" && execToken.MatchString(token) && !nonBinaryTokens[token] {
-			return true
+		for _, seg := range splitShellSegments(line) {
+			token := invocationToken(seg.text)
+			if token != "" && execToken.MatchString(token) && !nonBinaryTokens[token] {
+				return true
+			}
 		}
 	}
 	return false
@@ -301,29 +314,219 @@ func normalizedCommands(body []string) []string {
 	return out
 }
 
-func isInstallLine(line string) bool {
-	fields := strings.Fields(line)
-	if len(fields) == 0 {
-		return false
-	}
-	switch fields[0] {
-	case "pip", "pip3", "npm", "yarn", "pnpm", "bun", "cargo", "apt-get", "apt", "poetry":
-		return hasWord(fields, "install") || hasWord(fields, "add") || hasWord(fields, "sync")
-	case "uv":
-		return hasWord(fields, "sync") || (len(fields) > 2 && fields[1] == "pip" && fields[2] == "install")
-	case "python", "python3":
-		return len(fields) > 3 && fields[1] == "-m" && fields[2] == "pip" && fields[3] == "install"
-	}
-	return false
+// lineKind classifies one shell segment by what it contributes to a container
+// run. Only kindRun can be demo evidence; install and setup work belongs to the
+// image build, so neither may stand in for a demo.
+type lineKind int
+
+const (
+	kindRun lineKind = iota
+	kindInstall
+	kindSetup
+)
+
+// installFamilies maps each dependency-management program to the subcommands
+// that only fetch, install, lock or build dependencies. Keeping the knowledge in
+// one table keeps the rule structural: a line is dependency work when its
+// program is a family and its first argument is a non-demo subcommand.
+var installFamilies = map[string]map[string]bool{
+	"npm":      wordSet("ci", "i", "install", "add", "update", "dedupe", "prune", "audit", "fund", "rebuild"),
+	"pnpm":     wordSet("i", "install", "add", "update", "fetch", "import", "prune"),
+	"yarn":     wordSet("install", "add", "upgrade", "fetch", "init"),
+	"bun":      wordSet("i", "install", "add", "update"),
+	"composer": wordSet("install", "require", "update", "dump-autoload"),
+	"bundle":   wordSet("install", "update", "add"),
+	"gem":      wordSet("install", "update"),
+	"conda":    wordSet("install", "create", "update", "env"),
+	"mamba":    wordSet("install", "create", "update", "env"),
+	"uv":       wordSet("sync", "add", "pip", "lock", "init", "venv"),
+	"pip":      wordSet("install", "download", "wheel", "uninstall"),
+	"pip3":     wordSet("install", "download", "wheel", "uninstall"),
+	"pipx":     wordSet("install", "inject", "upgrade", "ensurepath"),
+	"poetry":   wordSet("install", "add", "update", "lock", "shell", "env", "config"),
+	"go":       wordSet("mod", "get"),
+	"cargo":    wordSet("fetch", "install", "add", "update", "generate-lockfile"),
+	"apt":      wordSet("install", "update", "upgrade"),
+	"apt-get":  wordSet("install", "update", "upgrade"),
+	"brew":     wordSet("install", "tap", "link"),
+	"make":     wordSet("install"),
+	"mvn":      wordSet("install", "package", "compile", "clean", "test", "verify", "dependency", "wrapper"),
+	"gradle":   wordSet("wrapper", "build", "assemble", "install", "dependencies"),
 }
 
-func hasWord(fields []string, word string) bool {
-	for _, f := range fields[1:] {
-		if f == word {
-			return true
+// bareInstallFamilies are package managers whose argument-less form installs.
+var bareInstallFamilies = map[string]bool{"yarn": true}
+
+// setupTokens activate or configure an environment instead of running a program.
+var setupTokens = map[string]bool{
+	"source": true, ".": true, "export": true, "virtualenv": true,
+}
+
+func wordSet(words ...string) map[string]bool {
+	set := make(map[string]bool, len(words))
+	for _, w := range words {
+		set[w] = true
+	}
+	return set
+}
+
+// commandSegment is one command inside a shell line, with the operator that
+// introduced it ("&&", "||", ";", "|" or "" at line start).
+type commandSegment struct {
+	text string
+	sep  string
+}
+
+// splitShellSegments splits a line on shell control operators, leaving quoted
+// text and redirections intact.
+func splitShellSegments(line string) []commandSegment {
+	var (
+		out   []commandSegment
+		buf   strings.Builder
+		sep   string
+		quote byte
+	)
+	flush := func(next string) {
+		text := strings.TrimSpace(buf.String())
+		buf.Reset()
+		if text != "" {
+			out = append(out, commandSegment{text: text, sep: sep})
+		}
+		sep = next
+	}
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if quote != 0 {
+			buf.WriteByte(c)
+			switch {
+			case c == quote:
+				quote = 0
+			case c == '\\' && quote == '"' && i+1 < len(line):
+				i++
+				buf.WriteByte(line[i])
+			}
+			continue
+		}
+		switch c {
+		case '\'', '"':
+			quote = c
+			buf.WriteByte(c)
+		case '\\':
+			buf.WriteByte(c)
+			if i+1 < len(line) {
+				i++
+				buf.WriteByte(line[i])
+			}
+		case '&':
+			if i+1 < len(line) && line[i+1] == '&' {
+				flush("&&")
+				i++
+			} else {
+				buf.WriteByte(c)
+			}
+		case '|':
+			if i+1 < len(line) && line[i+1] == '|' {
+				flush("||")
+				i++
+			} else {
+				flush("|")
+			}
+		case ';':
+			flush(";")
+		default:
+			buf.WriteByte(c)
 		}
 	}
-	return false
+	flush("")
+	return out
+}
+
+// joinShellSegments rebuilds the runnable remainder, keeping original operators
+// between segments that survived classification.
+func joinShellSegments(segs []commandSegment) string {
+	var b strings.Builder
+	for i, seg := range segs {
+		if i > 0 {
+			b.WriteString(" ")
+			if seg.sep != "" {
+				b.WriteString(seg.sep)
+				b.WriteString(" ")
+			}
+		}
+		b.WriteString(seg.text)
+	}
+	return b.String()
+}
+
+// segmentKind classifies one command segment as a demo run, dependency work or
+// environment setup.
+func segmentKind(text string) lineKind {
+	fields := strings.Fields(text)
+	i := 0
+	for i < len(fields) && envAssignment.MatchString(fields[i]) {
+		i++
+	}
+	if i == len(fields) {
+		return kindSetup
+	}
+	program := fields[i]
+	program = program[strings.LastIndex(program, "/")+1:]
+	args := fields[i+1:]
+
+	if setupTokens[program] {
+		return kindSetup
+	}
+	if program == "python" || program == "python3" || program == "py" {
+		module, rest, ok := pythonModule(args)
+		if !ok {
+			return kindRun
+		}
+		switch module {
+		case "venv", "virtualenv":
+			return kindSetup
+		case "pip", "pip3":
+			if installFamilies["pip"][firstNonFlagArg(rest)] {
+				return kindInstall
+			}
+		}
+		return kindRun
+	}
+	family, ok := installFamilies[program]
+	if !ok {
+		return kindRun
+	}
+	sub := firstNonFlagArg(args)
+	if sub == "" {
+		if bareInstallFamilies[program] {
+			return kindInstall
+		}
+		return kindRun
+	}
+	if family[sub] {
+		return kindInstall
+	}
+	return kindRun
+}
+
+// pythonModule finds `-m <module>` in a python argument list.
+func pythonModule(args []string) (module string, rest []string, ok bool) {
+	for i := 0; i < len(args); i++ {
+		if args[i] != "-m" || i+1 >= len(args) {
+			continue
+		}
+		return args[i+1], args[i+2:], true
+	}
+	return "", nil, false
+}
+
+func firstNonFlagArg(args []string) string {
+	for _, arg := range args {
+		if arg == "" || strings.HasPrefix(arg, "-") {
+			continue
+		}
+		return arg
+	}
+	return ""
 }
 
 func headingQualifies(text string) bool {

@@ -406,6 +406,60 @@ func TestDetectReadmeInstallPlusEchoIsNotADemo(t *testing.T) {
 	}
 }
 
+// Regression: dependency-only blocks must never become demos, whatever spelling
+// the package manager uses, and environment setup alone is not a demo either.
+func TestDetectReadmeDependencyOnlyBlocksAreNotDemos(t *testing.T) {
+	cases := []struct {
+		name  string
+		block string
+	}{
+		{name: "npm ci", block: "npm ci"},
+		{name: "npm ci plus echo", block: "npm ci\necho ok"},
+		{name: "npm i", block: "npm i"},
+		{name: "pnpm i", block: "pnpm i"},
+		{name: "bun i", block: "bun i"},
+		{name: "bare yarn", block: "yarn"},
+		{name: "bundle install", block: "bundle install"},
+		{name: "composer install", block: "composer install"},
+		{name: "conda env create", block: "conda env create -f environment.yml"},
+		{name: "go mod download", block: "go mod download"},
+		{name: "cargo fetch", block: "cargo fetch"},
+		{
+			name:  "venv setup plus pip install",
+			block: "python3 -m venv .venv\nsource .venv/bin/activate\npip install -r requirements.txt",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			md := "## Quick Start\n\n```bash\n" + tc.block + "\n```\n"
+			p := mustDetect(t, map[string]string{"README.md": md})
+			if p.Runnable() {
+				t.Fatalf("expected no_runnable_demo, got demo %#v", p.DemoCommand)
+			}
+		})
+	}
+}
+
+// Regression: removing install segments must leave a genuine program run, so an
+// install chained with a command still yields a demo.
+func TestDetectReadmeInstallChainedWithRunIsADemo(t *testing.T) {
+	cases := []struct{ name, block, wantInstall, wantDemo string }{
+		{"npm ci then start", "npm ci && npm start", "npm ci", "npm start"},
+		{"uv sync then run", "uv sync && uv run python demo.py", "uv sync", "uv run python demo.py"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			md := "## Quick Start\n\n```bash\n" + tc.block + "\n```\n"
+			p := mustDetect(t, map[string]string{"README.md": md})
+			if !p.Runnable() {
+				t.Fatalf("expected a runnable plan, got %q", p.NoDemoReason)
+			}
+			equalStrings(t, "install", p.Install, []string{tc.wantInstall})
+			equalStrings(t, "demo", p.DemoCommand, []string{"sh", "-lc", tc.wantDemo})
+		})
+	}
+}
+
 // Regression: a fence under a deeper subheading still belongs to the qualifying
 // quickstart section, while a same-or-shallower heading closes it.
 func TestDetectReadmeNestedSubheading(t *testing.T) {
