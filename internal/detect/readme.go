@@ -50,11 +50,16 @@ var (
 
 	execToken = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]*$`)
 
-	// Shell keywords are not evidence that a binary is invoked.
+	// A leading VAR=value token is an environment assignment, not a program.
+	envAssignment = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+
+	// Tokens at line start that are not evidence a demo program runs: shell
+	// builtins plus output/await-only commands such as echo, printf and sleep.
 	nonBinaryTokens = map[string]bool{
 		"export": true, "set": true, "source": true, "cd": true,
 		"unset": true, "alias": true, "echo": true, "if": true,
 		"for": true, "while": true, "then": true, "fi": true,
+		"printf": true, "sleep": true,
 	}
 )
 
@@ -71,23 +76,33 @@ type markdownFence struct {
 
 type markdownSection struct {
 	heading markdownHeading
+	depth   int
 	fences  []markdownFence
 }
 
 // scanMarkdownSections splits a markdown document into headings and the fenced
-// blocks inside each heading's section.
+// blocks inside each heading's section. Markdown nesting applies: a fence
+// belongs to its innermost heading and to every enclosing ancestor heading, so a
+// "### Step 1" block still counts for its "## Quick Start" parent. Only a
+// heading of the same or shallower depth closes a section.
 func scanMarkdownSections(md string) []markdownSection {
 	lines := strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n")
 	var sections []markdownSection
-	current := -1
+	var open []int
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
-		if text, ok := parseHeading(trimmed); ok {
-			sections = append(sections, markdownSection{heading: markdownHeading{text: text, line: i + 1}})
-			current = len(sections) - 1
+		if text, depth, ok := parseHeading(trimmed); ok {
+			for len(open) > 0 && sections[open[len(open)-1]].depth >= depth {
+				open = open[:len(open)-1]
+			}
+			sections = append(sections, markdownSection{
+				heading: markdownHeading{text: text, line: i + 1},
+				depth:   depth,
+			})
+			open = append(open, len(sections)-1)
 			continue
 		}
-		if current < 0 {
+		if len(open) == 0 {
 			continue
 		}
 		if delim, info, ok := parseFenceOpen(trimmed); ok {
@@ -102,33 +117,35 @@ func scanMarkdownSections(md string) []markdownSection {
 			if len(f.body) == 0 {
 				f.line = i + 1
 			}
-			sections[current].fences = append(sections[current].fences, f)
+			for _, idx := range open {
+				sections[idx].fences = append(sections[idx].fences, f)
+			}
 			i = j
 		}
 	}
 	return sections
 }
 
-func parseHeading(trimmed string) (string, bool) {
+func parseHeading(trimmed string) (text string, depth int, ok bool) {
 	if trimmed == "" {
-		return "", false
+		return "", 0, false
 	}
 	n := 0
 	for n < len(trimmed) && trimmed[n] == '#' {
 		n++
 	}
 	if n == 0 || n > 6 || n == len(trimmed) {
-		return "", false
+		return "", 0, false
 	}
 	if trimmed[n] != ' ' && trimmed[n] != '\t' {
-		return "", false
+		return "", 0, false
 	}
-	text := strings.TrimSpace(trimmed[n:])
+	text = strings.TrimSpace(trimmed[n:])
 	text = strings.TrimRight(text, "# \t")
 	if text == "" {
-		return "", false
+		return "", 0, false
 	}
-	return text, true
+	return text, n, true
 }
 
 func parseFenceOpen(trimmed string) (delim, info string, ok bool) {
@@ -209,25 +226,48 @@ func (f markdownFence) accept() (runLines, installLines []string, reason string)
 	if len(commands) == 0 {
 		return nil, nil, "block contains no commands"
 	}
-	hasBinary := false
 	for _, line := range commands {
-		token := strings.Fields(line)[0]
-		if execToken.MatchString(token) && !nonBinaryTokens[token] {
-			hasBinary = true
-		}
 		if isInstallLine(line) {
 			installLines = append(installLines, line)
 			continue
 		}
 		runLines = append(runLines, line)
 	}
-	if !hasBinary {
-		return nil, nil, "block has no binary invoked at line start"
-	}
 	if len(runLines) == 0 {
 		return nil, nil, "block only installs dependencies"
 	}
+	if !invokesBinary(runLines) {
+		return nil, nil, "block has no binary invoked at line start"
+	}
 	return runLines, installLines, ""
+}
+
+// invokesBinary reports whether any run line starts by invoking a real program,
+// so an install-then-echo block is not mistaken for a demo.
+func invokesBinary(runLines []string) bool {
+	for _, line := range runLines {
+		token := invocationToken(line)
+		if token != "" && execToken.MatchString(token) && !nonBinaryTokens[token] {
+			return true
+		}
+	}
+	return false
+}
+
+// invocationToken returns the program a command line invokes at line start,
+// skipping leading VAR=value assignments and any leading path, so "./run.sh",
+// "/usr/bin/env python" and "FOO=1 python" all name a program.
+func invocationToken(line string) string {
+	fields := strings.Fields(line)
+	i := 0
+	for i < len(fields) && envAssignment.MatchString(fields[i]) {
+		i++
+	}
+	if i == len(fields) {
+		return ""
+	}
+	program := fields[i]
+	return program[strings.LastIndex(program, "/")+1:]
 }
 
 func firstMatch(body string) string {

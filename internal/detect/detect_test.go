@@ -382,3 +382,95 @@ func TestDetectMergesReadmeInstallIntoManifest(t *testing.T) {
 	})
 	equalStrings(t, "demo", p.DemoCommand, []string{"sh", "-lc", "python app.py"})
 }
+
+// Regression: a dependency install followed only by echo/printf/sleep is not a
+// demo. Runnability is judged on the non-install remainder alone.
+func TestDetectReadmeInstallPlusEchoIsNotADemo(t *testing.T) {
+	cases := []struct{ name, block string }{
+		{"pip install plus echo", "pip install -r requirements.txt\necho ready"},
+		{"npm install plus echo", "npm install\necho ok"},
+		{"pip install plus printf", "pip install -r requirements.txt\nprintf done"},
+		{"pip install plus sleep", "pip install -r requirements.txt\nsleep 5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			md := "## Quick Start\n\n```bash\n" + tc.block + "\n```\n"
+			p := mustDetect(t, map[string]string{"README.md": md})
+			if p.Runnable() {
+				t.Fatalf("expected no_runnable_demo, got demo %#v", p.DemoCommand)
+			}
+			if !strings.Contains(p.NoDemoReason, "no binary invoked at line start") {
+				t.Fatalf("reason = %q", p.NoDemoReason)
+			}
+		})
+	}
+}
+
+// Regression: a fence under a deeper subheading still belongs to the qualifying
+// quickstart section, while a same-or-shallower heading closes it.
+func TestDetectReadmeNestedSubheading(t *testing.T) {
+	t.Run("fence under nested step heading", func(t *testing.T) {
+		md := `# Repo
+
+## Quick Start
+
+Intro text.
+
+### Step 1
+
+` + "```bash" + `
+python a.py
+` + "```" + `
+`
+		p := mustDetect(t, map[string]string{"README.md": md})
+		if !p.Runnable() {
+			t.Fatalf("expected the nested fence to be used, got %q", p.NoDemoReason)
+		}
+		equalStrings(t, "demo", p.DemoCommand, []string{"sh", "-lc", "python a.py"})
+	})
+
+	t.Run("same-level heading closes the section", func(t *testing.T) {
+		md := `# Repo
+
+## Quick Start
+
+### Step 1
+
+Nothing runnable here.
+
+## License
+
+` + "```bash" + `
+python leaked.py
+` + "```" + `
+`
+		p := mustDetect(t, map[string]string{"README.md": md})
+		if p.Runnable() {
+			t.Fatalf("fence after a same-level heading must not join Quick Start, got %#v", p.DemoCommand)
+		}
+		if !strings.Contains(p.NoDemoReason, "no fenced code block") {
+			t.Fatalf("reason = %q", p.NoDemoReason)
+		}
+	})
+}
+
+// Regression: a program invoked via a path or behind env assignments is a
+// positive runnability signal.
+func TestDetectReadmePathAndEnvPrefixedInvocations(t *testing.T) {
+	blocks := []struct{ name, block string }{
+		{"dot slash script", "./run.sh"},
+		{"absolute env wrapper", "/usr/bin/env python a.py"},
+		{"env assignment prefix", "FOO=1 python a.py"},
+		{"cd then dot slash", "cd example\n./run.sh"},
+	}
+	for _, tc := range blocks {
+		t.Run(tc.name, func(t *testing.T) {
+			md := "## Quick Start\n\n```bash\n" + tc.block + "\n```\n"
+			p := mustDetect(t, map[string]string{"README.md": md})
+			if !p.Runnable() {
+				t.Fatalf("expected %q to be runnable, got %q", tc.block, p.NoDemoReason)
+			}
+			equalStrings(t, "demo", p.DemoCommand, []string{"sh", "-lc", tc.block})
+		})
+	}
+}
